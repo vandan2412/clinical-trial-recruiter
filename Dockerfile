@@ -1,7 +1,6 @@
 FROM python:3.11-slim
 
 LABEL org.opencontainers.image.title="ClinicalTrialRecruiter"
-LABEL org.opencontainers.image.description="OpenEnv environment for AI clinical trial patient recruitment"
 LABEL org.opencontainers.image.version="1.0.0"
 
 WORKDIR /app
@@ -29,4 +28,4 @@ EXPOSE 7860
 HEALTHCHECK --interval=30s --timeout=10s --start-period=10s --retries=3 \
     CMD curl -f http://localhost:7860/health || exit 1
 
-CMD ["python", "app.py"]
+CMD ["python", "server/app.py"]

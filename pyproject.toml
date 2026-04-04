@@ -18,7 +18,9 @@ dependencies = [
 ]
 
 [project.scripts]
+server = "server.app:main"
 serve = "server.app:main"
+start = "server.app:main"
 
 [project.urls]
 Homepage = "https://huggingface.co/spaces/vandan2412/clinical-trial-recruiter"
