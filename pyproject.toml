@@ -1,0 +1,31 @@
+[build-system]
+requires = ["setuptools>=68.0", "wheel"]
+build-backend = "setuptools.backends.legacy:build"
+
+[project]
+name = "clinical-trial-recruiter"
+version = "1.0.0"
+description = "OpenEnv environment for AI clinical trial patient recruitment from anonymised EHR data"
+readme = "README.md"
+license = { text = "MIT" }
+requires-python = ">=3.10"
+keywords = ["openenv", "clinical-trials", "ICMR", "healthcare", "RL", "reinforcement-learning"]
+dependencies = [
+    "pydantic>=2.0.0,<3.0.0",
+    "openai>=1.0.0",
+    "numpy>=1.24.0",
+]
+
+[project.urls]
+Homepage = "https://huggingface.co/spaces/vandan2412/clinical-trial-recruiter"
+Repository = "https://github.com/vandan2412/clinical-trial-recruiter"
+
+[tool.setuptools.packages.find]
+where = ["."]
+include = ["src*"]
+
+[tool.openenv]
+name = "ClinicalTrialRecruiter"
+version = "1.0.0"
+entry_point = "src.env:ClinicalTrialRecruiterEnv"
+tasks = ["easy_single_criterion", "medium_comorbidities", "hard_diversity"]
