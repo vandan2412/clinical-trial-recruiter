@@ -6,36 +6,40 @@ name = "clinical-trial-recruiter"
 version = "1.0.0"
 source = { editable = "." }
 dependencies = [
-  { name = "pydantic" },
-  { name = "openai" },
   { name = "numpy" },
+  { name = "openai" },
   { name = "openenv-core" },
+  { name = "pydantic" },
 ]
 
 [package.metadata]
 requires-dist = [
-  { name = "pydantic", specifier = ">=2.0.0,<3.0.0" },
-  { name = "openai", specifier = ">=1.0.0" },
   { name = "numpy", specifier = ">=1.24.0" },
+  { name = "openai", specifier = ">=1.0.0" },
   { name = "openenv-core", specifier = ">=0.2.0" },
+  { name = "pydantic", specifier = ">=2.0.0,<3.0.0" },
 ]
+
+[[package]]
+name = "numpy"
+version = "1.26.4"
+source = { registry = "https://pypi.org/simple" }
+sdist = { url = "https://files.pythonhosted.org/packages/numpy-1.26.4.tar.gz" }
+
+[[package]]
+name = "openai"
+version = "1.51.0"
+source = { registry = "https://pypi.org/simple" }
+sdist = { url = "https://files.pythonhosted.org/packages/openai-1.51.0.tar.gz" }
 
 [[package]]
 name = "openenv-core"
 version = "0.2.0"
 source = { registry = "https://pypi.org/simple" }
-
-[[package]]
-name = "openai"
-version = "1.0.0"
-source = { registry = "https://pypi.org/simple" }
+sdist = { url = "https://files.pythonhosted.org/packages/openenv-core-0.2.0.tar.gz" }
 
 [[package]]
 name = "pydantic"
-version = "2.0.0"
+version = "2.9.2"
 source = { registry = "https://pypi.org/simple" }
-
-[[package]]
-name = "numpy"
-version = "1.24.0"
-source = { registry = "https://pypi.org/simple" }
+sdist = { url = "https://files.pythonhosted.org/packages/pydantic-2.9.2.tar.gz" }

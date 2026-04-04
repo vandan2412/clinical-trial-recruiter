@@ -18,7 +18,7 @@ dependencies = [
 ]
 
 [project.scripts]
-serve = "app:run_server"
+serve = "server.app:main"
 
 [project.urls]
 Homepage = "https://huggingface.co/spaces/vandan2412/clinical-trial-recruiter"
@@ -26,7 +26,7 @@ Repository = "https://github.com/vandan2412/clinical-trial-recruiter"
 
 [tool.setuptools.packages.find]
 where = ["."]
-include = ["src*"]
+include = ["src*", "server*"]
 
 [tool.openenv]
 name = "ClinicalTrialRecruiter"
