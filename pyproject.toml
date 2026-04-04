@@ -9,12 +9,16 @@ description = "OpenEnv environment for AI clinical trial patient recruitment fro
 readme = "README.md"
 license = { text = "MIT" }
 requires-python = ">=3.10"
-keywords = ["openenv", "clinical-trials", "ICMR", "healthcare", "RL", "reinforcement-learning"]
+keywords = ["openenv", "clinical-trials", "ICMR", "healthcare", "RL"]
 dependencies = [
     "pydantic>=2.0.0,<3.0.0",
     "openai>=1.0.0",
     "numpy>=1.24.0",
+    "openenv-core>=0.2.0",
 ]
+
+[project.scripts]
+serve = "app:run_server"
 
 [project.urls]
 Homepage = "https://huggingface.co/spaces/vandan2412/clinical-trial-recruiter"
