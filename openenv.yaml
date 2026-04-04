@@ -1,0 +1,198 @@
+name: ClinicalTrialRecruiter
+version: "1.0.0"
+description: >
+  An AI agent environment that simulates clinical trial patient recruitment
+  from anonymised Electronic Health Records (EHR). The agent screens patient
+  records against ICMR trial criteria, drafts personalised bilingual
+  (Tamil-English) invitations, handles opt-outs, and builds diverse,
+  ethically compliant cohorts. Addresses a real-world pharmaceutical
+  recruitment gap estimated at $1B+ in annual losses.
+
+tags:
+  - openenv
+  - healthcare
+  - clinical-trials
+  - ICMR
+  - India
+  - EHR
+  - patient-recruitment
+  - diversity
+  - ethics
+
+author: "ClinicalTrialRecruiter Team"
+license: MIT
+
+# ---------------------------------------------------------------------------
+# Observation space
+# ---------------------------------------------------------------------------
+observation_space:
+  type: dict
+  fields:
+    trial:
+      type: dict
+      description: Full trial specification including criteria and diversity targets.
+    current_patient:
+      type: dict
+      nullable: true
+      description: >
+        Anonymised EHR of the current patient under consideration.
+        Fields: id, age, gender, location, ethnicity, language,
+        comorbidities, labs (hba1c, wbc, hemoglobin), opted_out,
+        contacted, enrolled.
+    patient_index:
+      type: int
+      description: Index of current patient in the shuffled pool.
+    total_patients:
+      type: int
+      description: Total patients in this episode's pool.
+    cohort_stats:
+      type: dict
+      description: >
+        Live cohort composition: total_enrolled, female_count, rural_count,
+        age_distribution, female_pct, rural_pct, diversity_score,
+        privacy_violations.
+    target_cohort_size:
+      type: int
+      description: Number of patients needed to complete the trial cohort.
+    action_history:
+      type: list
+      description: Last 8 (step, action, reward, patient_id) tuples.
+    invites_sent:
+      type: int
+    follow_ups_sent:
+      type: int
+    opt_outs_recorded:
+      type: int
+    steps_remaining:
+      type: int
+    done:
+      type: bool
+    task_name:
+      type: str
+
+# ---------------------------------------------------------------------------
+# Action space
+# ---------------------------------------------------------------------------
+action_space:
+  type: discrete_text
+  actions:
+    - name: screen_eligible
+      description: Evaluate current patient against trial inclusion/exclusion criteria.
+    - name: draft_invite
+      description: >
+        Send personalised recruitment invitation to current eligible patient.
+        Format: draft_invite[<personalised message>]
+        The message should be in Tamil-English for ICMR trials.
+    - name: follow_up
+      description: Send follow-up communication to a previously contacted patient.
+    - name: mark_optout
+      description: Record that the current patient has opted out of the trial.
+    - name: prioritize_next
+      description: Skip current patient and advance to the next in the queue.
+
+# ---------------------------------------------------------------------------
+# Tasks
+# ---------------------------------------------------------------------------
+tasks:
+  - name: easy_single_criterion
+    display_name: "Single-Criterion Patient Screening"
+    description: >
+      Screen patients for an ICMR TB trial using a single criterion:
+      active TB diagnosis. Identify eligible patients and enrol them.
+    difficulty: easy
+    max_steps: 25
+    target_score: 0.85
+    grader:
+      type: jaccard_similarity
+      description: >
+        Jaccard similarity between enrolled patient set and ground-truth
+        eligible set. Score in [0.0, 1.0]. Privacy violations penalised.
+    baseline_score: 0.85
+
+  - name: medium_comorbidities
+    display_name: "Multi-Comorbidity Cohort Building"
+    description: >
+      Build a diabetes cohort requiring patients with diabetes AND without
+      heart disease. Lab values (HbA1c 7.0–9.5) must also match.
+      Partial credit for correct enrollments; penalties for ineligible ones.
+    difficulty: medium
+    max_steps: 35
+    target_score: 0.65
+    grader:
+      type: f1_with_penalty
+      description: >
+        F1 score on enrolled vs eligible set, penalised by ineligible
+        enrollments (−0.08 each) and privacy violations (−0.05 each).
+    baseline_score: 0.65
+
+  - name: hard_diversity
+    display_name: "Diversity-Optimised Cohort Recruitment"
+    description: >
+      Build a dengue antiviral trial cohort meeting strict ICMR diversity
+      targets: ≥30% female, ≥20% rural, age spread across all brackets.
+      Respect opt-outs. Use personalised bilingual (Tamil-English) invites.
+      Severe penalties for privacy violations and imbalance.
+    difficulty: hard
+    max_steps: 40
+    target_score: 0.45
+    grader:
+      type: composite
+      description: >
+        Weighted composite: eligibility (45%) × diversity (35%) × privacy (20%).
+        Hard penalties: −0.15 for critical female imbalance, −0.10 for rural
+        imbalance, −0.20/violation for privacy breaches.
+    baseline_score: 0.45
+
+# ---------------------------------------------------------------------------
+# Reward shaping
+# ---------------------------------------------------------------------------
+reward_shaping:
+  enroll_eligible: +0.9
+  diversity_progress: +0.4
+  eligibility_match: +0.2
+  personalised_invite_bonus: +0.05
+  privacy_violation: -0.5
+  ineligible_enrollment: -0.15
+  cohort_imbalance: -0.3
+  repeat_action: -0.05
+  invalid_action: -0.05
+  strategic_skip: -0.01
+
+# ---------------------------------------------------------------------------
+# Episode configuration
+# ---------------------------------------------------------------------------
+episode:
+  termination_conditions:
+    - cohort_full: "Enrolled patients reach target_cohort_size"
+    - max_steps: "Step count reaches task max_steps"
+    - no_patients: "All patients in pool have been visited"
+  reset_on_episode_end: true
+  seed_behaviour: "Fixed seed=42 for reproducibility; configurable via reset(seed=N)"
+
+# ---------------------------------------------------------------------------
+# Deployment
+# ---------------------------------------------------------------------------
+deployment:
+  hf_space: true
+  hf_tags:
+    - openenv
+  endpoints:
+    - method: POST
+      path: /reset
+      description: "Reset environment. Body: {task?, seed?}. Returns observation."
+    - method: POST
+      path: /step
+      description: "Execute action. Body: {action}. Returns StepResult."
+    - method: GET
+      path: /state
+      description: "Return full environment state."
+    - method: GET
+      path: /tasks
+      description: "List available tasks."
+    - method: GET
+      path: /health
+      description: "Health check."
+  docker:
+    build_timeout_minutes: 15
+    cpu: 2
+    memory_gb: 8

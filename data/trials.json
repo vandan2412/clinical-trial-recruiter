@@ -1,0 +1,74 @@
+[
+  {
+    "id": "ICMR-TB-2024-001",
+    "name": "ICMR Phase III TB Drug Efficacy Trial",
+    "disease": "tuberculosis",
+    "sponsor": "ICMR",
+    "phase": "III",
+    "target_cohort_size": 20,
+    "criteria": {
+      "age_min": 18,
+      "age_max": 65,
+      "required_comorbidities": ["tb_active"],
+      "excluded_comorbidities": ["heart_disease"],
+      "required_labs": {},
+      "gender_requirement": null
+    },
+    "diversity_targets": {
+      "female_min_pct": 0.30,
+      "rural_min_pct": 0.20,
+      "age_spread_required": true
+    },
+    "description": "Evaluating novel shorter-duration TB treatment regimen in adults across India.",
+    "status": "recruiting",
+    "window_days": 30
+  },
+  {
+    "id": "ICMR-DENGUE-2024-002",
+    "name": "ICMR Dengue Antiviral Phase II Trial",
+    "disease": "dengue",
+    "sponsor": "ICMR",
+    "phase": "II",
+    "target_cohort_size": 15,
+    "criteria": {
+      "age_min": 20,
+      "age_max": 60,
+      "required_comorbidities": ["dengue_history"],
+      "excluded_comorbidities": ["tb_active", "heart_disease"],
+      "required_labs": {"wbc_max": 6.0},
+      "gender_requirement": null
+    },
+    "diversity_targets": {
+      "female_min_pct": 0.30,
+      "rural_min_pct": 0.20,
+      "age_spread_required": true
+    },
+    "description": "Evaluating antiviral candidate for dengue prevention in previously infected adults.",
+    "status": "recruiting",
+    "window_days": 25
+  },
+  {
+    "id": "ICMR-DIAB-2024-003",
+    "name": "ICMR Diabetes Management in Rural Populations",
+    "disease": "diabetes",
+    "sponsor": "ICMR",
+    "phase": "II",
+    "target_cohort_size": 25,
+    "criteria": {
+      "age_min": 30,
+      "age_max": 65,
+      "required_comorbidities": ["diabetes"],
+      "excluded_comorbidities": ["heart_disease"],
+      "required_labs": {"hba1c_min": 7.0, "hba1c_max": 9.5},
+      "gender_requirement": null
+    },
+    "diversity_targets": {
+      "female_min_pct": 0.35,
+      "rural_min_pct": 0.25,
+      "age_spread_required": true
+    },
+    "description": "Community-based diabetes management program targeting underserved rural populations.",
+    "status": "recruiting",
+    "window_days": 40
+  }
+]
