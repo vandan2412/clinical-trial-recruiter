@@ -1,3 +1,14 @@
+---
+title: ClinicalTrialRecruiter
+emoji: 🏥
+colorFrom: blue
+colorTo: green
+sdk: docker
+pinned: false
+tags:
+  - openenv
+---
+
 # 🏥 ClinicalTrialRecruiter — OpenEnv Environment
 
 > AI agent environment for clinical trial patient recruitment from anonymised EHR data.
