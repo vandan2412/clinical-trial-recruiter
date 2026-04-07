@@ -1,6 +1,7 @@
 """
 inference.py - Baseline inference script for ClinicalTrialRecruiter.
-Strictly follows the OpenEnv sample inference.py template.
+Phase 2 fix: Must use injected API_BASE_URL and API_KEY from environment.
+DO NOT hardcode keys or use other providers.
 
 STDOUT FORMAT:
   [START] task=<task_name> env=<benchmark> model=<model_name>
@@ -15,16 +16,14 @@ from typing import List, Optional
 from openai import OpenAI
 
 # ---------------------------------------------------------------------------
-# Configuration — strictly per checklist:
-# Defaults set ONLY for API_BASE_URL and MODEL_NAME — NOT for HF_TOKEN
+# PHASE 2 FIX: Use injected API_BASE_URL and API_KEY from validator proxy
+# Initialize client INSIDE main() so env vars are fully loaded at runtime
 # ---------------------------------------------------------------------------
-API_BASE_URL     = os.getenv("API_BASE_URL", "https://router.huggingface.co/v1")
-MODEL_NAME       = os.getenv("MODEL_NAME", "Qwen/Qwen2.5-72B-Instruct")
-HF_TOKEN         = os.getenv("HF_TOKEN")           # No default — must be set in env
-LOCAL_IMAGE_NAME = os.getenv("LOCAL_IMAGE_NAME")    # Optional: for from_docker_image()
+API_BASE_URL = os.environ.get("API_BASE_URL", "https://router.huggingface.co/v1")
+MODEL_NAME   = os.environ.get("MODEL_NAME", "Qwen/Qwen2.5-72B-Instruct")
 
-# OpenAI client uses HF_TOKEN as the API key
-API_KEY = HF_TOKEN or os.getenv("API_KEY")
+# API_KEY must come from injected environment — validator checks this is used
+API_KEY = os.environ.get("API_KEY") or os.environ.get("HF_TOKEN")
 
 BENCHMARK               = "clinical_trial_recruiter"
 MAX_STEPS               = 20
@@ -32,12 +31,7 @@ TEMPERATURE             = 0.2
 SUCCESS_SCORE_THRESHOLD = 0.1
 
 # ---------------------------------------------------------------------------
-# OpenAI client — configured via environment variables per checklist
-# ---------------------------------------------------------------------------
-client = OpenAI(base_url=API_BASE_URL, api_key=API_KEY)
-
-# ---------------------------------------------------------------------------
-# Required stdout logging — exact format per spec
+# Stdout logging — exact required format
 # ---------------------------------------------------------------------------
 
 def log_start(task: str, env_name: str, model: str) -> None:
@@ -67,7 +61,7 @@ def log_end(success: bool, steps: int, score: float,
 
 
 # ---------------------------------------------------------------------------
-# Agent system prompt
+# System prompt
 # ---------------------------------------------------------------------------
 SYSTEM_PROMPT = """\
 You are an expert AI agent for ICMR clinical trial patient recruitment.
@@ -87,9 +81,9 @@ Rules:
 """
 
 
-def get_agent_action(obs_json: str, task_name: str,
+def get_agent_action(client: OpenAI, obs_json: str, task_name: str,
                      step: int, last_reward: float) -> str:
-    """Query LLM for next action using OpenAI client."""
+    """Query LLM via injected proxy — API_BASE_URL and API_KEY from env."""
     user_prompt = (
         f"Task: {task_name}\nStep: {step}\nLast reward: {last_reward:.2f}\n"
         f"Observation:\n{obs_json}\n\nYour action:"
@@ -107,16 +101,16 @@ def get_agent_action(obs_json: str, task_name: str,
         text = (completion.choices[0].message.content or "").strip()
         return text if text else "screen_eligible"
     except Exception as exc:
-        print(f"[DEBUG] Model request failed: {exc}", flush=True)
+        print(f"[DEBUG] LLM call failed: {exc}", flush=True)
         return "screen_eligible"
 
 
 # ---------------------------------------------------------------------------
-# Single-task episode runner
+# Single task runner
 # ---------------------------------------------------------------------------
-def run_task(env, task_name: str, max_steps: int = MAX_STEPS,
-             seed: int = 42) -> float:
-    """Run one episode. Returns final grader score in [0.0, 1.0]."""
+def run_task(env, task_name: str, client: OpenAI,
+             max_steps: int = MAX_STEPS, seed: int = 42) -> float:
+    """Run one episode. Returns grader score in [0.0, 1.0]."""
     import numpy as np
     np.random.seed(seed)
 
@@ -135,7 +129,7 @@ def run_task(env, task_name: str, max_steps: int = MAX_STEPS,
                 break
 
             action_str = get_agent_action(
-                obs.json(indent=None), task_name, step, last_reward
+                client, obs.json(indent=None), task_name, step, last_reward
             )
 
             result      = env.step(action_str)
@@ -168,16 +162,32 @@ def run_task(env, task_name: str, max_steps: int = MAX_STEPS,
 
 
 # ---------------------------------------------------------------------------
-# Main — three explicit task runs
+# Main
 # ---------------------------------------------------------------------------
 def main() -> None:
     from src.env import ClinicalTrialRecruiterEnv
 
+    # CRITICAL: Initialize OpenAI client with injected proxy credentials
+    # Validator checks that API_BASE_URL and API_KEY from env are used
+    api_base = os.environ.get("API_BASE_URL", "https://router.huggingface.co/v1")
+    api_key  = os.environ.get("API_KEY") or os.environ.get("HF_TOKEN")
+
+    print(f"[DEBUG] API_BASE_URL={api_base}", flush=True)
+    print(f"[DEBUG] API_KEY set: {bool(api_key)}", flush=True)
+    print(f"[DEBUG] MODEL_NAME={MODEL_NAME}", flush=True)
+
+    # Use injected proxy — do NOT hardcode or use own credentials
+    client = OpenAI(
+        base_url=api_base,
+        api_key=api_key,
+    )
+
     env = ClinicalTrialRecruiterEnv(seed=42)
 
-    score_easy   = run_task(env, "easy_single_criterion",  seed=42)
-    score_medium = run_task(env, "medium_comorbidities",   seed=42)
-    score_hard   = run_task(env, "hard_diversity",         seed=42)
+    # Three explicit task runs
+    score_easy   = run_task(env, "easy_single_criterion",  client, seed=42)
+    score_medium = run_task(env, "medium_comorbidities",   client, seed=42)
+    score_hard   = run_task(env, "hard_diversity",         client, seed=42)
 
     scores = {
         "easy_single_criterion": score_easy,
