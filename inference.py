@@ -1,31 +1,34 @@
 """
-inference.py - BULLETPROOF VERSION for OpenEnv Phase 2
+inference.py - FINAL HARDENED VERSION for OpenEnv Phase 2
 
 THIS VERSION GUARANTEES:
-1. NO defaults for API credentials
-2. NO fallbacks to other providers
-3. Explicit validation that env vars are set
-4. All API calls go through injected proxy
-5. Clear logging of what's being used
+1. NO defaults for API credentials OR model name
+2. NO silent fallbacks - all errors propagate loudly
+3. Explicit validation that ALL env vars are set
+4. Smoke test verifies proxy BEFORE tasks run
+5. All API calls go through injected proxy
+6. Full tracebacks on every failure path
 
-CRITICAL: This will fail LOUD if env vars are missing
-(Better to fail with error message than silently use wrong endpoint)
+CRITICAL: This will fail LOUD if anything is wrong.
+(Better to fail with a clear error than silently make zero API calls)
 """
 
 import os
 import sys
 import json
+import traceback
 from typing import List, Optional
 
 # =============================================================================
 # PHASE 2: STRICT ENVIRONMENT VALIDATION
 # =============================================================================
 # DO NOT read API credentials at module level
-# DO NOT provide defaults
+# DO NOT provide defaults for credentials or model name
 # DO NOT use other providers as fallback
+# DO NOT swallow exceptions silently
 # =============================================================================
 
-# These can have defaults because they're not critical credentials:
+# Non-credential constants only:
 BENCHMARK = "clinical_trial_recruiter"
 MAX_STEPS = 25
 TEMPERATURE = 0.2
@@ -83,7 +86,7 @@ Examples: screen_eligible, draft_invite[message], follow_up, mark_optout, priori
 
 
 def get_agent_action(
-    client,  # OpenAI client initialized with injected credentials
+    client,
     obs_json: str,
     task_name: str,
     step: int,
@@ -92,49 +95,64 @@ def get_agent_action(
 ) -> str:
     """
     Get action from LLM via the INJECTED PROXY.
-    
-    CRITICAL: The client MUST be initialized with:
-    - base_url = os.environ["API_BASE_URL"]
-    - api_key = os.environ["API_KEY"]
-    
-    This function makes an actual API call through the proxy.
+
+    NO silent fallback. If the API call fails, the exception propagates
+    so the caller sees the real error. The validator MUST see API traffic.
     """
     user_prompt = (
         f"Task: {task_name}\nStep: {step}\nLast reward: {last_reward:.2f}\n"
         f"Observation:\n{obs_json}\n\nYour action:"
     )
 
-    try:
-        # THIS CALL GOES THROUGH THE INJECTED PROXY
-        completion = client.chat.completions.create(
-            model=model_name,
-            messages=[
-                {"role": "system", "content": SYSTEM_PROMPT},
-                {"role": "user", "content": user_prompt},
-            ],
-            temperature=TEMPERATURE,
-            max_tokens=150,
-        )
+    # THIS CALL GOES THROUGH THE INJECTED PROXY - NO TRY/EXCEPT, NO FALLBACK
+    completion = client.chat.completions.create(
+        model=model_name,
+        messages=[
+            {"role": "system", "content": SYSTEM_PROMPT},
+            {"role": "user", "content": user_prompt},
+        ],
+        temperature=TEMPERATURE,
+        max_tokens=150,
+    )
 
-        text = (completion.choices[0].message.content or "").strip()
+    text = (completion.choices[0].message.content or "").strip()
 
-        if not text:
-            return "screen_eligible"
-
-        # Extract first line if multiline
-        if "\n" in text:
-            text = text.split("\n")[0].strip()
-
-        return text
-
-    except Exception as exc:
-        print(f"[DEBUG] LLM call failed: {exc}", flush=True)
+    if not text:
+        print(f"[WARN] Empty LLM response at step {step}, defaulting to screen_eligible", flush=True)
         return "screen_eligible"
+
+    # Extract first line if multiline
+    if "\n" in text:
+        text = text.split("\n")[0].strip()
+
+    print(f"[DEBUG] LLM action at step {step}: {text}", flush=True)
+    return text
+
+
+def obs_to_str(obs) -> str:
+    """
+    Safely convert observation to string.
+    Handles objects with .json(), dicts, or anything else.
+    """
+    try:
+        return obs.json(indent=None)
+    except AttributeError:
+        pass
+    try:
+        return json.dumps(obs)
+    except (TypeError, ValueError):
+        pass
+    return str(obs)
 
 
 def run_task(env, task_name: str, client, model_name: str,
              max_steps: int = MAX_STEPS, seed: int = 42) -> float:
-    """Run single task episode."""
+    """
+    Run single task episode.
+
+    API errors from get_agent_action are NOT caught here - they propagate
+    to main() so the run fails loud instead of completing with zero API calls.
+    """
     import numpy as np
     np.random.seed(seed)
 
@@ -152,8 +170,11 @@ def run_task(env, task_name: str, client, model_name: str,
             if obs.done:
                 break
 
+            obs_str = obs_to_str(obs)
+
+            # NO try/except here - API failures must propagate loudly
             action_str = get_agent_action(
-                client, obs.json(indent=None), task_name, step, last_reward, model_name
+                client, obs_str, task_name, step, last_reward, model_name
             )
 
             result = env.step(action_str)
@@ -167,7 +188,7 @@ def run_task(env, task_name: str, client, model_name: str,
             obs = result.observation
 
             log_step(step=step, action=action_str, reward=reward,
-                    done=done, error=error)
+                     done=done, error=error)
 
             if done:
                 break
@@ -176,29 +197,25 @@ def run_task(env, task_name: str, client, model_name: str,
         success = score >= SUCCESS_SCORE_THRESHOLD
 
     except Exception as exc:
-        print(f"[DEBUG] Episode error: {exc}", flush=True)
+        print(f"[ERROR] Episode '{task_name}' failed at step {steps_taken}: {exc}", flush=True)
+        traceback.print_exc()
+        raise  # propagate - do not hide failures
 
     finally:
         log_end(success=success, steps=steps_taken,
-               score=score, rewards=rewards)
+                score=score, rewards=rewards)
 
     return score
 
 
 # =============================================================================
-# MAIN ENTRY POINT - WHERE ENV VARS ARE READ
+# MAIN ENTRY POINT
 # =============================================================================
 
 def main() -> None:
     """
-    Main execution.
-    
-    CRITICAL CHECKS:
-    1. Read API_BASE_URL from os.environ (no default)
-    2. Read API_KEY from os.environ (no default, no fallback)
-    3. Validate both are present
-    4. Create OpenAI client with validated values
-    5. Make API calls through the client
+    Main execution with strict validation at every step.
+    Nothing is silent. Everything is logged. Errors always propagate.
     """
 
     print("=" * 70, flush=True)
@@ -206,44 +223,55 @@ def main() -> None:
     print("=" * 70, flush=True)
 
     # =========================================================================
-    # STEP 1: READ FROM ENVIRONMENT (NO DEFAULTS, NO FALLBACKS)
+    # STEP 1: READ ALL ENV VARS - NO DEFAULTS FOR CREDENTIALS OR MODEL NAME
     # =========================================================================
 
-    api_base = os.environ.get("API_BASE_URL")
-    api_key = os.environ.get("API_KEY")
-    model_name = os.environ.get("MODEL_NAME", "Qwen/Qwen2.5-72B-Instruct")
+    api_base   = os.environ.get("API_BASE_URL")
+    api_key    = os.environ.get("API_KEY")
+    model_name = os.environ.get("MODEL_NAME")   # NO DEFAULT - must be injected
 
-    print(f"[DEBUG] API_BASE_URL from env: {api_base}", flush=True)
-    print(f"[DEBUG] API_KEY from env: {'SET' if api_key else 'NOT SET'}", flush=True)
-    print(f"[DEBUG] MODEL_NAME from env: {model_name}", flush=True)
+    print(f"[DEBUG] API_BASE_URL  : {api_base}", flush=True)
+    print(f"[DEBUG] API_KEY       : {'SET' if api_key else 'NOT SET'}", flush=True)
+    print(f"[DEBUG] MODEL_NAME    : {model_name}", flush=True)
 
     # =========================================================================
-    # STEP 2: STRICT VALIDATION - FAIL FAST IF MISSING
+    # STEP 2: STRICT VALIDATION - FAIL FAST IF ANYTHING IS MISSING
     # =========================================================================
 
+    missing = []
     if not api_base:
-        print("[ERROR] API_BASE_URL not set in environment", flush=True)
-        print("[ERROR] Validator must inject this variable", flush=True)
-        sys.exit(1)
-
+        missing.append("API_BASE_URL")
     if not api_key:
-        print("[ERROR] API_KEY not set in environment", flush=True)
-        print("[ERROR] Validator must inject this variable", flush=True)
+        missing.append("API_KEY")
+    if not model_name:
+        missing.append("MODEL_NAME")
+
+    if missing:
+        for var in missing:
+            print(f"[ERROR] {var} is not set in environment", flush=True)
+        print("[ERROR] Validator must inject all required variables", flush=True)
         sys.exit(1)
 
     print("[DEBUG] ✓ All required environment variables are set", flush=True)
 
     # =========================================================================
-    # STEP 3: IMPORT OpenAI AFTER VALIDATION
+    # STEP 3: IMPORT openai - FAIL LOUD IF NOT INSTALLED OR WRONG VERSION
     # =========================================================================
 
-    from openai import OpenAI
+    try:
+        from openai import OpenAI
+        import openai as _oai
+        print(f"[DEBUG] ✓ openai package imported (version: {_oai.__version__})", flush=True)
+    except ImportError as exc:
+        print(f"[ERROR] Failed to import openai: {exc}", flush=True)
+        print("[ERROR] Install with: pip install openai>=1.0.0", flush=True)
+        sys.exit(1)
 
     # =========================================================================
     # STEP 4: CREATE CLIENT WITH INJECTED CREDENTIALS
     # =========================================================================
 
-    print(f"[DEBUG] Creating OpenAI client with base_url={api_base}", flush=True)
+    print(f"[DEBUG] Initializing OpenAI client with base_url={api_base}", flush=True)
 
     client = OpenAI(
         base_url=api_base,
@@ -253,19 +281,55 @@ def main() -> None:
     print("[DEBUG] ✓ OpenAI client initialized", flush=True)
 
     # =========================================================================
-    # STEP 5: IMPORT ENVIRONMENT
+    # STEP 4.5: SMOKE TEST - VERIFY PROXY IS REACHABLE BEFORE ANYTHING ELSE
     # =========================================================================
 
-    from src.env import ClinicalTrialRecruiterEnv
+    print("[DEBUG] Running proxy smoke test...", flush=True)
 
-    env = ClinicalTrialRecruiterEnv(seed=42)
+    try:
+        test_response = client.chat.completions.create(
+            model=model_name,
+            messages=[{"role": "user", "content": "Reply with the single word: ready"}],
+            max_tokens=10,
+            temperature=0.0,
+        )
+        test_text = (test_response.choices[0].message.content or "").strip()
+        print(f"[DEBUG] ✓ Proxy smoke test PASSED. Response: '{test_text}'", flush=True)
+    except Exception as exc:
+        print(f"[ERROR] Proxy smoke test FAILED: {exc}", flush=True)
+        print(f"[ERROR] base_url   = {api_base}", flush=True)
+        print(f"[ERROR] model_name = {model_name}", flush=True)
+        print("[ERROR] Check that API_BASE_URL is correct and model is registered on the proxy", flush=True)
+        traceback.print_exc()
+        sys.exit(1)
 
-    print("[DEBUG] ✓ Environment initialized", flush=True)
+    # =========================================================================
+    # STEP 5: IMPORT ENVIRONMENT - SEPARATE IMPORT vs INIT FOR CLEAR ERRORS
+    # =========================================================================
+
+    print("[DEBUG] Importing ClinicalTrialRecruiterEnv...", flush=True)
+
+    try:
+        from src.env import ClinicalTrialRecruiterEnv
+        print("[DEBUG] ✓ src.env module imported", flush=True)
+    except ImportError as exc:
+        print(f"[ERROR] Cannot import ClinicalTrialRecruiterEnv: {exc}", flush=True)
+        traceback.print_exc()
+        sys.exit(1)
+
+    try:
+        env = ClinicalTrialRecruiterEnv(seed=42)
+        print("[DEBUG] ✓ Environment instantiated", flush=True)
+    except Exception as exc:
+        print(f"[ERROR] ClinicalTrialRecruiterEnv() raised: {exc}", flush=True)
+        traceback.print_exc()
+        sys.exit(1)
+
     print("[DEBUG] Starting task execution...", flush=True)
     print("=" * 70, flush=True)
 
     # =========================================================================
-    # STEP 6: RUN TASKS - EACH WILL MAKE API CALLS THROUGH THE PROXY
+    # STEP 6: RUN ALL TASKS - EVERY STEP MAKES A REAL API CALL THROUGH PROXY
     # =========================================================================
 
     try:
@@ -286,13 +350,12 @@ def main() -> None:
         }
 
         print("=" * 70, flush=True)
-        print("[DEBUG] EXECUTION COMPLETE", flush=True)
+        print("[DEBUG] ALL TASKS COMPLETE", flush=True)
         print(f"[DEBUG] FINAL SCORES: {json.dumps(scores, indent=2)}", flush=True)
         print("=" * 70, flush=True)
 
     except Exception as exc:
-        print(f"[ERROR] Execution failed: {exc}", flush=True)
-        import traceback
+        print(f"[ERROR] Task execution failed: {exc}", flush=True)
         traceback.print_exc()
         sys.exit(1)
 
