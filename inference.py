@@ -246,8 +246,8 @@ def main() -> None:
     print(f"[DEBUG] Creating OpenAI client with base_url={api_base}", flush=True)
 
     client = OpenAI(
-        base_url=api_base,
-        api_key=api_key,
+        base_url=os.environ["API_BASE_URL"],
+        api_key=os.environ["API_KEY"],
     )
 
     print("[DEBUG] ✓ OpenAI client initialized", flush=True)
