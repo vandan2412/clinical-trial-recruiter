@@ -206,49 +206,18 @@ def main() -> None:
     print("=" * 70, flush=True)
 
     # =========================================================================
-    # STEP 1: READ FROM ENVIRONMENT (NO DEFAULTS, NO FALLBACKS)
+    # STEP 1: STRICT INITIALIZATION
     # =========================================================================
 
-    api_base = os.environ.get("API_BASE_URL")
-    api_key = os.environ.get("API_KEY")
+    if "API_BASE_URL" not in os.environ or "API_KEY" not in os.environ:
+        print("[ERROR] API_BASE_URL or API_KEY not set in environment", flush=True)
+        sys.exit(1)
+
     model_name = os.environ.get("MODEL_NAME", "Qwen/Qwen2.5-72B-Instruct")
-
-    print(f"[DEBUG] API_BASE_URL from env: {api_base}", flush=True)
-    print(f"[DEBUG] API_KEY from env: {'SET' if api_key else 'NOT SET'}", flush=True)
-    print(f"[DEBUG] MODEL_NAME from env: {model_name}", flush=True)
-
-    # =========================================================================
-    # STEP 2: STRICT VALIDATION - FAIL FAST IF MISSING
-    # =========================================================================
-
-    if not api_base:
-        print("[ERROR] API_BASE_URL not set in environment", flush=True)
-        print("[ERROR] Validator must inject this variable", flush=True)
-        sys.exit(1)
-
-    if not api_key:
-        print("[ERROR] API_KEY not set in environment", flush=True)
-        print("[ERROR] Validator must inject this variable", flush=True)
-        sys.exit(1)
-
-    print("[DEBUG] ✓ All required environment variables are set", flush=True)
-
-    # =========================================================================
-    # STEP 3: IMPORT OpenAI AFTER VALIDATION
-    # =========================================================================
 
     from openai import OpenAI
 
-    # =========================================================================
-    # STEP 4: CREATE CLIENT WITH INJECTED CREDENTIALS
-    # =========================================================================
-
-    print(f"[DEBUG] Creating OpenAI client with base_url={api_base}", flush=True)
-
-    client = OpenAI(
-        base_url=os.environ["API_BASE_URL"],
-        api_key=os.environ["API_KEY"],
-    )
+    client = OpenAI(base_url=os.environ["API_BASE_URL"], api_key=os.environ["API_KEY"])
 
     print("[DEBUG] ✓ OpenAI client initialized", flush=True)
 
