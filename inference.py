@@ -104,32 +104,27 @@ def get_agent_action(
         f"Observation:\n{obs_json}\n\nYour action:"
     )
 
-    try:
-        # THIS CALL GOES THROUGH THE INJECTED PROXY
-        completion = client.chat.completions.create(
-            model=model_name,
-            messages=[
-                {"role": "system", "content": SYSTEM_PROMPT},
-                {"role": "user", "content": user_prompt},
-            ],
-            temperature=TEMPERATURE,
-            max_tokens=150,
-        )
+    # THIS CALL GOES THROUGH THE INJECTED PROXY
+    completion = client.chat.completions.create(
+        model=model_name,
+        messages=[
+            {"role": "system", "content": SYSTEM_PROMPT},
+            {"role": "user", "content": user_prompt},
+        ],
+        temperature=TEMPERATURE,
+        max_tokens=150,
+    )
 
-        text = (completion.choices[0].message.content or "").strip()
+    text = (completion.choices[0].message.content or "").strip()
 
-        if not text:
-            return "screen_eligible"
-
-        # Extract first line if multiline
-        if "\n" in text:
-            text = text.split("\n")[0].strip()
-
-        return text
-
-    except Exception as exc:
-        print(f"[DEBUG] LLM call failed: {exc}", flush=True)
+    if not text:
         return "screen_eligible"
+
+    # Extract first line if multiline
+    if "\n" in text:
+        text = text.split("\n")[0].strip()
+
+    return text
 
 
 def run_task(env, task_name: str, client, model_name: str,
