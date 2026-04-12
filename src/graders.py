@@ -255,4 +255,4 @@ class Grader:
         else:
             raise ValueError(f"Unknown task: {task_name}")
             
-        return max(0.0001, min(0.9999, raw_score))
+        return max(0.001, min(0.999, raw_score))
