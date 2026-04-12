@@ -64,7 +64,7 @@ class RequestHandler(BaseHTTPRequestHandler):
         elif self.path == "/state":
             try:
                 state = ENV.state()
-                _json_response(self, 200, state.dict())
+                _json_response(self, 200, state.model_dump())
             except Exception as e:
                 _json_response(self, 500, {"error": str(e)})
 
@@ -84,7 +84,7 @@ class RequestHandler(BaseHTTPRequestHandler):
                 seed = body.get("seed", 42)
                 obs = ENV.reset(task=task, seed=seed)
                 _initialized = True
-                _json_response(self, 200, obs.dict())
+                _json_response(self, 200, obs.model_dump())
             except Exception as e:
                 _json_response(self, 500, {"error": str(e)})
 
@@ -96,7 +96,7 @@ class RequestHandler(BaseHTTPRequestHandler):
                 body = _read_body(self)
                 action = body.get("action", "screen_eligible")
                 result = ENV.step(action)
-                _json_response(self, 200, result.dict())
+                _json_response(self, 200, result.model_dump())
             except Exception as e:
                 _json_response(self, 500, {"error": str(e)})
 

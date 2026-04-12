@@ -63,7 +63,7 @@ class Handler(BaseHTTPRequestHandler):
             _json_response(self, 200, {"status": "ok", "env": "ClinicalTrialRecruiter"})
         elif self.path == "/state":
             try:
-                _json_response(self, 200, _get_env().state().dict())
+                _json_response(self, 200, _get_env().state().model_dump())
             except Exception as e:
                 _json_response(self, 500, {"error": str(e)})
         elif self.path == "/tasks":
@@ -81,7 +81,7 @@ class Handler(BaseHTTPRequestHandler):
                 seed = body.get("seed", 42)
                 obs = _get_env().reset(task=task, seed=seed)
                 _initialized = True
-                _json_response(self, 200, obs.dict())
+                _json_response(self, 200, obs.model_dump())
             except Exception as e:
                 _json_response(self, 500, {"error": str(e)})
         elif self.path == "/step":
@@ -91,7 +91,7 @@ class Handler(BaseHTTPRequestHandler):
             try:
                 body = _read_body(self)
                 result = _get_env().step(body.get("action", "screen_eligible"))
-                _json_response(self, 200, result.dict())
+                _json_response(self, 200, result.model_dump())
             except Exception as e:
                 _json_response(self, 500, {"error": str(e)})
         else:

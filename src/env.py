@@ -474,13 +474,13 @@ class ClinicalTrialRecruiterEnv:
                 "ethnicity": current_patient.ethnicity,
                 "language": current_patient.language,
                 "comorbidities": current_patient.comorbidities,
-                "labs": current_patient.labs.dict(),
+                "labs": current_patient.labs.model_dump(),
                 "opted_out": current_patient.opted_out,
                 "contacted": current_patient.contacted,
                 "enrolled": current_patient.enrolled,
             }
 
-        trial_dict = self._trial.dict() if self._trial else {}
+        trial_dict = self._trial.model_dump() if self._trial else {}
 
         return Observation(
             trial=trial_dict,

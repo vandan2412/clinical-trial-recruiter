@@ -142,40 +142,35 @@ def run_task(env, task_name: str, client, model_name: str,
 
     log_start(task=task_name, env_name=BENCHMARK, model=model_name)
 
-    try:
-        for step in range(1, max_steps + 1):
-            if obs.done:
-                break
+    for step in range(1, max_steps + 1):
+        if obs.done:
+            break
 
-            action_str = get_agent_action(
-                client, obs.json(indent=None), task_name, step, last_reward, model_name
-            )
+        action_str = get_agent_action(
+            client, obs.model_dump_json(), task_name, step, last_reward, model_name
+        )
 
-            result = env.step(action_str)
-            reward = result.reward
-            done = result.done
-            error = result.info.get("error")
+        result = env.step(action_str)
+        reward = result.reward
+        done = result.done
+        error = result.info.get("error")
 
-            rewards.append(reward)
-            steps_taken = step
-            last_reward = reward
-            obs = result.observation
+        rewards.append(reward)
+        steps_taken = step
+        last_reward = reward
+        obs = result.observation
 
-            log_step(step=step, action=action_str, reward=reward,
-                    done=done, error=error)
+        log_step(step=step, action=action_str, reward=reward,
+                done=done, error=error)
 
-            if done:
-                break
+        if done:
+            break
 
-        score = env.grader_score(task_name)
-        success = score >= SUCCESS_SCORE_THRESHOLD
+    score = env.grader_score(task_name)
+    success = score >= SUCCESS_SCORE_THRESHOLD
 
-    except Exception as exc:
-        print(f"[DEBUG] Episode error: {exc}", flush=True)
-
-    finally:
-        log_end(success=success, steps=steps_taken,
-               score=score, rewards=rewards)
+    log_end(success=success, steps=steps_taken,
+           score=score, rewards=rewards)
 
     return score
 
@@ -208,7 +203,12 @@ def main() -> None:
         print("[ERROR] API_BASE_URL or API_KEY not set in environment", flush=True)
         sys.exit(1)
 
+    # Ensure base URL has /v1 for the OpenAI client if not present
+    if not os.environ["API_BASE_URL"].endswith("/v1") and not os.environ["API_BASE_URL"].endswith("/v1/"):
+        os.environ["API_BASE_URL"] = os.environ["API_BASE_URL"].rstrip("/") + "/v1"
+
     model_name = os.environ.get("MODEL_NAME", "Qwen/Qwen2.5-72B-Instruct")
+    print(f"[DEBUG] Using API_BASE_URL={os.environ['API_BASE_URL']}, MODEL={model_name}", flush=True)
 
     from openai import OpenAI
 
