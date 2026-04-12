@@ -241,16 +241,18 @@ class Grader:
         privacy_violations: int,
     ) -> float:
         if task_name == "easy_single_criterion":
-            return grade_easy_single_criterion(
+            raw_score = grade_easy_single_criterion(
                 enrolled_ids, self.patients, self.trial, privacy_violations
             )
         elif task_name == "medium_comorbidities":
-            return grade_medium_comorbidities(
+            raw_score = grade_medium_comorbidities(
                 enrolled_ids, self.patients, self.trial, privacy_violations
             )
         elif task_name == "hard_diversity":
-            return grade_hard_diversity(
+            raw_score = grade_hard_diversity(
                 enrolled_ids, self.patients, self.trial, cohort_stats, privacy_violations
             )
         else:
             raise ValueError(f"Unknown task: {task_name}")
+            
+        return max(0.0001, min(0.9999, raw_score))
